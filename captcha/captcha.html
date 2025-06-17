@@ -8,43 +8,282 @@
   <style type="text/css">
     html,
     body {
-      background: pink;
+      background: #FFFFFF;
       margin: 0;
       padding: 0;
       font-family: sans-serif;
+      overflow: hidden;
     }
 
     #captcha-container {
       background: white;
       width: 390px;
       height: 300px;
+      overflow: hidden;
     }
 
-    /* Your style here... */
+    #board {
+      display: grid;
+      grid-template-columns: repeat(8, 25px);
+      grid-gap: 2px;
+      margin: 20px auto;
+      width: max-content;
+    }
+
+    #progress-container {
+      
+      width: 80%;
+      height: 16px;
+      background-color: #a1a1a1;
+      margin: 0px auto;
+      top: 32px;
+      left: 32px;
+      border-radius: 5px;
+      overflow: hidden;
+      z-index: 999999;
+    }
+
+    #progress-bar {
+      width: 0%;
+      height: 100%;
+      background-color: #0fe26e;
+      transition: width 0.1s;
+    }
+
+    .gem {
+      width: 25px;
+      height: 25px;
+      background-color: #ccc;
+      font-size: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .gem.fall {
+      animation: fall 0.2s ease-in;
+    }
+
+    @keyframes fall {
+      from {
+        transform: translateY(-25px);
+        opacity: 0.5;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .gem.pop {
+      animation: pop 0.3s ease-out;
+    }
+
+    @keyframes pop {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: scale(1.4);
+        opacity: 0.6;
+      }
+      100% {
+        transform: scale(0.2);
+        opacity: 0;
+      }
+    }
   </style>
 </head>
 
 <body>
   <div id="captcha-container">
-    <!-- Add your CAPTCHA here: -->
-    Hello world!
-
-    <!-- We've added a sample button. Feel free to remove it: -->
-    <button id="solve">
-      Solve!
-    </button>
+    <div id="board"></div>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
   </div>
 
   <script type="text/javascript">
     (function(window, document){
       // This is how you tell the parent window that the CAPTCHA was successful.
       function captchaSuccess() {
-        window.top.postMessage("success", '*');
+        setTimeout(window.top.postMessage("success", '*'), 2000);
       }
 
-      // Your CAPTCHA code goes here, we've added a simple example below:
-      document.getElementById('solve')
-           .addEventListener('click', () => captchaSuccess());
+      const board = document.getElementById("board");
+      const progressBar = document.getElementById('progress-bar');
+      const width = 8;
+      const gems = ["💎", "💚", "❤️", "💙", "💛", "💜"];
+      let grid = [];
+      let score = 0;
+      const scoreToWin = 10000;
+      const gemPoints = 100;
+
+      function createBoard() {
+      for (let i = 0; i < width * width; i++) {
+        const gem = document.createElement("div");
+        gem.classList.add("gem");
+        gem.setAttribute("draggable", true);
+        gem.setAttribute("id", i);
+        gem.innerText = getRandomGem();
+        board.appendChild(gem);
+        grid.push(gem);
+      }
+      checkMatches();
+      }
+
+      function getRandomGem() {
+      return gems[Math.floor(Math.random() * gems.length)];
+      }
+
+      // Drag & drop mechanics
+      let draggedGem = null;
+      let replacedGem = null;
+
+      document.addEventListener("dragstart", e => {
+      if (e.target.classList.contains("gem")) {
+        draggedGem = e.target;
+      }
+      });
+
+      document.addEventListener("dragover", e => e.preventDefault());
+
+      document.addEventListener("drop", e => {
+      if (e.target.classList.contains("gem")) {
+        replacedGem = e.target;
+        swapGems();
+      }
+      });
+
+      function swapGems() {
+        const dragId = parseInt(draggedGem.id);
+        const replaceId = parseInt(replacedGem.id);
+
+        const validMoves = [
+          dragId - 1, dragId + 1,
+          dragId - width, dragId + width
+        ];
+
+        if (validMoves.includes(replaceId)) {
+          let temp = draggedGem.innerText;
+          draggedGem.innerText = replacedGem.innerText;
+          replacedGem.innerText = temp;
+
+          // Detect match
+          setTimeout(() => {
+            const match = checkMatches();
+            if (!match) {
+              // No match? Swap back
+              replacedGem.innerText = draggedGem.innerText;
+              draggedGem.innerText = temp;
+            } else {
+              collapseBoard();
+            }
+          }, 100);
+        }
+      }
+
+      function checkMatches() {
+      let matched = false;
+
+      // Check rows
+      for (let i = 0; i < 64; i++) {
+        if (i % width > width - 3) continue;
+        let gem1 = grid[i].innerText;
+        let gem2 = grid[i + 1].innerText;
+        let gem3 = grid[i + 2].innerText;
+        if (gem1 === gem2 && gem2 === gem3 && gem1 !== "") {
+          grid[i].classList.add("pop");
+          grid[i + 1].classList.add("pop");
+          grid[i + 2].classList.add("pop");
+          matched = true;
+        }
+      }
+
+      // Check columns
+      for (let i = 0; i < width * (width - 2); i++) {
+        let gem1 = grid[i].innerText;
+        let gem2 = grid[i + width].innerText;
+        let gem3 = grid[i + width * 2].innerText;
+        if (gem1 === gem2 && gem2 === gem3 && gem1 !== "") {
+          grid[i].classList.add("pop");
+          grid[i + width].classList.add("pop");
+          grid[i + width * 2].classList.add("pop");
+          matched = true;
+        }
+      }
+
+
+      // After all matches checked, clear gems *after* the pop animation:
+      if (matched) {
+        
+        setTimeout(() => {
+          grid.forEach(gem => {
+            if (gem.classList.contains("pop")) {
+              gem.innerText = "";
+              gem.classList.remove("pop");
+              addScore(gemPoints);
+            }
+
+          });
+          collapseBoard();
+        }, 300);
+      }
+
+      return matched;
+      }
+
+      function addScore(points) {
+        score += points;
+        progressBar.style.width = ((score / scoreToWin) * 100) + '%';
+        checkWin();
+      }
+
+      function checkWin() {
+        if(score >= scoreToWin) {
+          captchaSuccess();
+        }
+      }
+
+      function collapseBoard() {
+        let didMove = false;
+
+        // Loop from bottom up, skipping only the last row
+        for (let i = width * (width - 1) - 1; i >= 0; i--) {
+          let below = i + width;
+          if (grid[i].innerText !== "" && grid[below].innerText === "") {
+            grid[below].innerText = grid[i].innerText;
+            grid[i].innerText = "";
+            
+            //falling animation
+            grid[below].classList.add("fall");
+            setTimeout(() => grid[below].classList.remove("fall"), 200);
+
+            didMove = true;
+          }
+        }
+
+        // Refill top row
+        for (let i = 0; i < width; i++) {
+          if (grid[i].innerText === "") {
+            grid[i].innerText = getRandomGem();
+            didMove = true;
+          }
+        }
+
+        if (didMove) {
+          setTimeout(() => collapseBoard(), 100);
+        } else {
+          setTimeout(() => {
+            if (checkMatches()) collapseBoard();
+          }, 100);
+        }
+      }
+
+      createBoard();
 
     })(window, document);
   </script>
