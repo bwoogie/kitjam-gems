@@ -22,21 +22,36 @@
       overflow: hidden;
     }
 
+    #info-box {
+      background: #1b74e8;
+      color: #ffffff;
+      
+      width: 100%;
+      padding: 16px;
+      display: block;
+    }
+
+    #info-box .text-regular{
+      font-size: 14px;
+    }
+
+    #info-box .text-large{
+      font-size: 24px;
+    }
+
     #board {
       display: grid;
       grid-template-columns: repeat(8, 25px);
       grid-gap: 2px;
-      margin: 20px auto;
+      margin: 8px auto;
       width: max-content;
     }
 
     #progress-container {
-      
       width: 80%;
       height: 16px;
       background-color: #a1a1a1;
       margin: 0px auto;
-      top: 32px;
       left: 32px;
       border-radius: 5px;
       overflow: hidden;
@@ -100,6 +115,10 @@
 
 <body>
   <div id="captcha-container">
+    <div id="info-box">
+      <div id="info1" class="text-regular">Match 3 or more gems in a row</div>
+      <div id="info2" class="text-large"></div>
+    </div>
     <div id="board"></div>
     <div id="progress-container">
       <div id="progress-bar"></div>
@@ -110,17 +129,19 @@
     (function(window, document){
       // This is how you tell the parent window that the CAPTCHA was successful.
       function captchaSuccess() {
-        setTimeout(window.top.postMessage("success", '*'), 2000);
+        window.top.postMessage("success", '*')
       }
 
       const board = document.getElementById("board");
       const progressBar = document.getElementById('progress-bar');
+      const progressBarContainer = document.getElementById('progress-container');
       const width = 8;
       const gems = ["💎", "💚", "❤️", "💙", "💛", "💜"];
       let grid = [];
       let score = 0;
       const scoreToWin = 10000;
       const gemPoints = 100;
+      let gameOver = false;
 
       function createBoard() {
       for (let i = 0; i < width * width; i++) {
@@ -144,21 +165,24 @@
       let replacedGem = null;
 
       document.addEventListener("dragstart", e => {
-      if (e.target.classList.contains("gem")) {
-        draggedGem = e.target;
-      }
+        if(gameOver) return;
+        if (e.target.classList.contains("gem")) {
+          draggedGem = e.target;
+        }
       });
 
       document.addEventListener("dragover", e => e.preventDefault());
 
       document.addEventListener("drop", e => {
-      if (e.target.classList.contains("gem")) {
-        replacedGem = e.target;
-        swapGems();
-      }
+        if(gameOver) return;
+        if (e.target.classList.contains("gem")) {
+          replacedGem = e.target;
+          swapGems();
+        }
       });
 
       function swapGems() {
+        if(gameOver) return;
         const dragId = parseInt(draggedGem.id);
         const replaceId = parseInt(replacedGem.id);
 
@@ -187,6 +211,7 @@
       }
 
       function checkMatches() {
+        if(gameOver) return;
       let matched = false;
 
       // Check rows
@@ -244,11 +269,30 @@
 
       function checkWin() {
         if(score >= scoreToWin) {
-          captchaSuccess();
+          gameOver = true;
+          //progressBarContainer.style.display = "none";
+          
+          //pop all remaining gems
+          for(let i = 0; i < 64; i++) {
+            r = Math.floor(Math.random() * 2000);
+            setTimeout(()=>{
+              grid[i].classList.add("pop")
+            
+            //clear after pop
+            setTimeout(()=> {
+              grid[i].innerText = "";
+              grid.classList.remove("pop");}, 300);
+            
+            }, r);
+          }
+
+          setTimeout(captchaSuccess, 4000);
+          
         }
       }
 
       function collapseBoard() {
+        if(gameOver) return;
         let didMove = false;
 
         // Loop from bottom up, skipping only the last row
